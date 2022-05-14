@@ -123,7 +123,6 @@ groups() ->
 %%--------------------------------------------------------------------
 all() ->
   [ tc_app_echo_server
-  , tc_slow_conn
   , tc_stream_owner_down
   , tc_conn_owner_down
   , tc_conn_close_flag_1
@@ -158,7 +157,6 @@ tc_app_echo_server(Config) ->
   ListenerOpts = [{conn_acceptors, 32} | default_listen_opts(Config)],
   ConnectionOpts = [ {conn_callback, quicer_server_conn_callback}
                    , {stream_acceptors, 32}
-                   , {fast_conn, false}
                      | default_conn_opts()],
   StreamOpts = [ {stream_callback, quicer_echo_server_stream_callback}
                | default_stream_opts() ],
@@ -203,55 +201,10 @@ tc_app_echo_server(Config) ->
   quicer:close_connection(Conn),
   ok = quicer:stop_listener(mqtt).
 
-tc_slow_conn(Config) ->
-  Port = select_port(),
-  ListenerOpts = [{conn_acceptors, 32} | default_listen_opts(Config)],
-  ConnectionOpts = [ {conn_callback, quicer_server_conn_callback}
-                   , {fast_conn, false}
-                   , {stream_acceptors, 32}
-                     | default_conn_opts()],
-  StreamOpts = [ {stream_callback, quicer_echo_server_stream_callback}
-               | default_stream_opts() ],
-  Options = {ListenerOpts, ConnectionOpts, StreamOpts},
-  ct:pal("Listener Options: ~p", [Options]),
-  ?check_trace(#{timetrap => 1000},
-               begin
-                 {ok, _QuicApp} = quicer:start_listener(mqtt, Port, Options),
-                 {ok, Conn} = quicer:connect("localhost", Port, default_conn_opts(), 5000),
-                 {ok, Stm} = quicer:start_stream(Conn, [{active, false}]),
-                 {ok, 4} = quicer:async_send(Stm, <<"ping">>),
-                 quicer:recv(Stm, 4),
-                 ct:pal("closing stream"),
-                 ok = quicer:close_stream(Stm),
-                 ct:pal("closing conn"),
-                 quicer:close_connection(Conn),
-                 ct:pal("stop listener"),
-                 ok = quicer:stop_listener(mqtt)
-               end,
-               fun(Result, Trace) ->
-                   ct:pal("Trace is ~p", [Trace]),
-                   ?assertEqual(ok, Result),
-                   ?assert(?strict_causality(#{ ?snk_kind := debug
-                                              , function := "ServerListenerCallback"
-                                              , tag := "fast_conn"
-                                              , mark := 0
-                                              , resource_id := _Rid
-                                              },
-                                             #{ ?snk_kind := debug
-                                              , function := "async_handshake_1"
-                                              , tag := "start"
-                                              , mark := 0
-                                              , resource_id := _Rid
-                                              },
-                                             Trace))
-               end),
-  ok.
-
 tc_stream_owner_down(Config) ->
   Port = select_port(),
   ListenerOpts = [{conn_acceptors, 32} | default_listen_opts(Config)],
   ConnectionOpts = [ {conn_callback, quicer_server_conn_callback}
-                   , {fast_conn, false}
                    , {stream_acceptors, 32}
                      | default_conn_opts()],
   StreamOpts = [ {stream_callback, quicer_echo_server_stream_callback}
@@ -335,7 +288,6 @@ tc_conn_owner_down(Config) ->
   Port = select_port(),
   ListenerOpts = [{conn_acceptors, 32} | default_listen_opts(Config)],
   ConnectionOpts = [ {conn_callback, quicer_server_conn_callback}
-                   , {fast_conn, false}
                    , {stream_acceptors, 32}
                      | default_conn_opts()],
   StreamOpts = [ {stream_callback, quicer_echo_server_stream_callback}
@@ -448,7 +400,6 @@ tc_conn_close_flag_1(Config) ->
   Port = select_port(),
   ListenerOpts = [{conn_acceptors, 32} | default_listen_opts(Config)],
   ConnectionOpts = [ {conn_callback, quicer_server_conn_callback}
-                   , {fast_conn, false}
                    , {stream_acceptors, 32}
                      | default_conn_opts()],
   StreamOpts = [ {stream_callback, quicer_echo_server_stream_callback}
@@ -505,7 +456,7 @@ tc_conn_close_flag_2(Config) ->
   Port = select_port(),
   ListenerOpts = [{conn_acceptors, 32} | default_listen_opts(Config)],
   ConnectionOpts = [ {conn_callback, quicer_server_conn_callback}
-                   , {fast_conn, false}
+
                    , {stream_acceptors, 32}
                      | default_conn_opts()],
   StreamOpts = [ {stream_callback, quicer_echo_server_stream_callback}
@@ -543,7 +494,6 @@ tc_stream_close_errno(Config) ->
   Port = select_port(),
   ListenerOpts = [{conn_acceptors, 32} | default_listen_opts(Config)],
   ConnectionOpts = [ {conn_callback, quicer_server_conn_callback}
-                   , {fast_conn, false}
                    , {stream_acceptors, 32}
                      | default_conn_opts()],
   StreamOpts = [ {stream_callback, quicer_echo_server_stream_callback}
@@ -606,7 +556,6 @@ tc_conn_idle_close(Config) ->
   Port = select_port(),
   ListenerOpts = [{conn_acceptors, 32} | default_listen_opts(Config)],
   ConnectionOpts = [ {conn_callback, quicer_server_conn_callback}
-                   , {fast_conn, false}
                    , {stream_acceptors, 32}
                    , {idle_timeout_ms, 1000}
                    | default_conn_opts()],
@@ -678,7 +627,6 @@ tc_conn_gc(Config) ->
   Port = select_port(),
   ListenerOpts = [{conn_acceptors, 32} | default_listen_opts(Config)],
   ConnectionOpts = [ {conn_callback, quicer_server_conn_callback}
-                   , {fast_conn, false}
                    , {stream_acceptors, 32}
                    , {idle_timeout_ms, 5000}
                      | default_conn_opts()],
@@ -769,7 +717,6 @@ tc_conn_no_gc(Config) ->
   Port = select_port(),
   ListenerOpts = [{conn_acceptors, 32} | default_listen_opts(Config)],
   ConnectionOpts = [ {conn_callback, quicer_server_conn_callback}
-                   , {fast_conn, false}
                    , {stream_acceptors, 32}
                    , {idle_timeout_ms, 1000}
                    | default_conn_opts()],
@@ -850,7 +797,6 @@ tc_conn_resume(Config) ->
   Port = select_port(),
   ListenerOpts = [{conn_acceptors, 32} | default_listen_opts(Config)],
   ConnectionOpts = [ {conn_callback, quicer_server_conn_callback}
-                   , {fast_conn, false}
                    , {stream_acceptors, 32}
                      | default_conn_opts()],
   StreamOpts = [ {stream_callback, quicer_echo_server_stream_callback}
