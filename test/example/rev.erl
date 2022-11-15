@@ -71,6 +71,7 @@ nat_site() ->
                          {verify, none},
                          {keep_alive_interval_ms, ?INTERVAL},
                          {handshake_idle_timeout_ms, 3 * ?INTERVAL},
+                         {peer_bidi_stream_count, 5},
                          {idle_timeout_ms, 3 * ?INTERVAL}],
                         10000) of
         {ok, Conn} ->
