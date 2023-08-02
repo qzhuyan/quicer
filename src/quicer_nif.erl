@@ -41,6 +41,7 @@
 
 -export([ get_conn_rid/1
         , get_stream_rid/1
+        , nif_vsn/0
         ]).
 
 %% For tests only
@@ -236,6 +237,10 @@ controlling_process(_H, _P) ->
 -spec peercert(connection_handle()  | stream_handle()) ->
         {ok, Cert:: public_key:der_encoded()} | {error, any()}.
 peercert(_Handle) ->
+  erlang:nif_error(nif_library_not_loaded).
+
+-spec nif_vsn() -> integer().
+nif_vsn() ->
   erlang:nif_error(nif_library_not_loaded).
 
 %% Internals

@@ -284,7 +284,6 @@ listen2(ErlNifEnv *env, __unused_parm__ int argc, const ERL_NIF_TERM argv[])
       return ERROR_TUPLE_2(ATOM_BADARG);
     }
 
-
   // Build CredConfig
   QUIC_CREDENTIAL_CONFIG CredConfig;
   CxPlatZeroMemory(&CredConfig, sizeof(QUIC_CREDENTIAL_CONFIG));

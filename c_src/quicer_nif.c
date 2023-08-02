@@ -15,6 +15,7 @@ limitations under the License.
 -------------------------------------------------------------------*/
 
 #include "quicer_nif.h"
+#include "quicer_nif_static.h"
 
 #include <dlfcn.h>
 
@@ -1408,6 +1409,14 @@ make_event(ErlNifEnv *env,
                           prop);      // 4th element, event props :: any()) //
 }
 
+ERL_NIF_TERM
+vsn0(ErlNifEnv *env,
+     __unused_parm__ int argc,
+     __unused_parm__ const ERL_NIF_TERM argv[])
+{
+  return enif_make_int(env, QUICER_NIF_VSN);
+}
+
 static ErlNifFunc nif_funcs[] = {
   /* |  name  | arity| funptr | flags|
    *
@@ -1439,7 +1448,8 @@ static ErlNifFunc nif_funcs[] = {
   { "peercert", 1, peercert1, 0},
   /* for DEBUG */
   { "get_conn_rid", 1, get_conn_rid1, 1},
-  { "get_stream_rid", 1, get_stream_rid1, 1}
+  { "get_stream_rid", 1, get_stream_rid1, 1},
+  { "nif_vsn", 0, vsn0, 0}
   // clang-format on
 };
 

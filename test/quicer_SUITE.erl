@@ -189,6 +189,11 @@
         , tc_peercert_client_nocert/1
         , tc_peercert_server/1
         , tc_peercert_server_nocert/1
+
+        %% Versions
+        , tc_vsn/1
+        , tc_msquic_githash/1
+        , tc_nif_vsn/1
         %% testcase to verify env works
         %% , tc_network/1
         ]).
@@ -238,6 +243,7 @@ init_per_suite(Config) ->
   _ = quicer_test_lib:gen_host_cert("other-client", "other-ca", DataDir),
   _ = quicer_test_lib:gen_host_cert("server-password", "ca", DataDir, #{password => ?SERVER_KEY_PASSWORD}),
   application:ensure_all_started(quicer),
+  ct:pal("testing quicer: ~s", [quicer:vsn()]),
   Config.
 
 end_per_suite(_Config) ->
@@ -3209,6 +3215,17 @@ tc_peercert_server_nocert(Config) ->
   SPid ! done,
   ensure_server_exit_normal(Ref),
   ok.
+
+tc_vsn(_) ->
+  ?assert(is_list(quicer:vsn())).
+
+tc_nif_vsn(_)->
+  ?assert(is_integer(quicer:nif_vsn())).
+
+tc_msquic_githash(_) ->
+  Hash = quicer:msquic_githash(),
+  ct:pal("Get Git Hash ~s", [Hash]),
+  ?assertEqual(40 + 1, length(Hash)).
 
 %%% ====================
 %%% Internal helpers

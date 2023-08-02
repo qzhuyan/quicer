@@ -30,6 +30,12 @@
         ]
        ).
 
+%% Versions
+-export([ vsn/0
+        , nif_vsn/0
+        , msquic_githash/0
+        ]).
+
 %% Traffic APIs
 -export([ listen/2
         , close_listener/1
@@ -1016,6 +1022,28 @@ defrag_fpbuffer(Offset, [], Res) ->
 defrag_fpbuffer(Offset, [{HeadOffset, _Data} | _T] = Buffer, Res) when HeadOffset >= Offset ->
     % Nomatch
     {Offset, Buffer, lists:reverse(Res)}.
+
+%% @doc return quicer library version in string
+-spec vsn() -> string().
+vsn() ->
+  {ok, R} = application:get_key(?MODULE, vsn),
+  R.
+
+%% @doc Get msquic library git hash
+-spec msquic_githash() -> {ok, string()} | {error, any()}.
+msquic_githash() ->
+  case quicer_nif:getopt(quic_global,
+                  param_global_library_git_hash, false) of
+    {ok, Buffer} ->
+      binary_to_list(Buffer);
+    E ->
+      E
+  end.
+
+%% @doc Get quicer nif internal integer version
+-spec nif_vsn() -> non_neg_integer().
+nif_vsn() ->
+  quicer_nif:nif_vsn().
 
 %%% Internal helpers
 -spec ifrag(quic_data()) -> ifrag().

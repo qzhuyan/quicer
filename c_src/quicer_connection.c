@@ -127,13 +127,12 @@ peercert1(ErlNifEnv *env, __unused_parm__ int argc, const ERL_NIF_TERM argv[])
       return ERROR_TUPLE_2(ATOM_ERROR_INTERNAL_ERROR);
     }
 
-  unsigned char *data
-      = enif_make_new_binary(env, len, &DerCert);
+  unsigned char *data = enif_make_new_binary(env, len, &DerCert);
 
   if (!data)
-  {
+    {
       return ERROR_TUPLE_2(ATOM_ERROR_NOT_ENOUGH_MEMORY);
-  }
+    }
 
   // note, using tmp is mandatory, see doc for i2d_X590
   tmp = data;
