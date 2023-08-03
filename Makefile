@@ -1,5 +1,5 @@
 REBAR := rebar3
-QUICER_VERSION ?= $(shell git describe --tags --long)
+QUICER_VERSION ?= $(shell git describe --tags --long | echo "0")
 export QUICER_VERSION
 
 .PHONY: all
