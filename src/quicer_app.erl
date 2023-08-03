@@ -22,7 +22,8 @@
 
 start(_StartType, _StartArgs) ->
     quicer:open_lib(),
-    quicer:reg_open(application:get_env(quicer, profile, quic_execution_profile_low_latency)),
+    Profile = application:get_env(quicer, profile, quic_execution_profile_low_latency),
+    quicer:reg_open(Profile),
     quicer_sup:start_link().
 
 stop(_) ->

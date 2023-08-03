@@ -21,6 +21,12 @@ else()
   set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 
+if (DEFINED ENV{QUICER_VERSION})
+  set(QUICER_VERSION $ENV{QUICER_VERSION})
+else()
+  set(QUICER_VERSION "0")
+endif()
+
 if (DEFINED ENV{QUIC_ENABLE_LOGGING})
   set(QUIC_ENABLE_LOGGING $ENV{QUIC_ENABLE_LOGGING})
 else()
@@ -119,6 +125,7 @@ add_dependencies(quicer_static msquic)
 set_target_properties(quicer_nif
     PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/priv/
+        LIBRARY_OUTPUT_NAME quicer_nif.${QUICER_VERSION}
 )
 
 if (QUIC_ENABLE_LOGGING)

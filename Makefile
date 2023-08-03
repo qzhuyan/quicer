@@ -1,4 +1,6 @@
 REBAR := rebar3
+QUICER_VERSION ?= $(shell git describe --tags --long)
+export QUICER_VERSION
 
 .PHONY: all
 all: compile

@@ -53,11 +53,16 @@
 -include("quicer.hrl").
 -include("quicer_types.hrl").
 
+
+%% @note,
+%% In embedded mode, first all modules are loaded.
+%% Then all on_load functions are called.
 -spec init() -> ok.
 init() ->
   NifName = "libquicer_nif",
-  {ok, Niflib} = locate_lib(priv_dir(), NifName),
-  ok = erlang:load_nif(Niflib, 0),
+  QuicerVsn = quicer:vsn(),
+  {ok, Niflib} = locate_lib(priv_dir(), NifName++"."++QuicerVsn),
+  ok = erlang:load_nif(Niflib, _LoadInfo = QuicerVsn),
   %% It could cause segfault if MsQuic library is not opened nor registered.
   %% here we have added dummy calls, and it should cover most of cases
   %% unless caller wants to call erlang:load_nif/1 and then call quicer_nif

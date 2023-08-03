@@ -1,6 +1,6 @@
 {application, quicer,
  [{description, "msquic nif binding"},
-  {vsn, "git"},
+  {vsn, {cmd, "echo \"$QUICER_VERSION\""}},
   {registered, []},
   {applications,
    [kernel,
@@ -17,6 +17,8 @@
             , quicer_conn_acceptor_sup
             , quicer_server_conn_callback
             , quicer_stream
+            , quicer_local_stream
+            , quicer_remote_stream
             , quicer_sup
             , quicer_nif]},
 

@@ -6,6 +6,8 @@
 
 Feature todo list, priority descending
 
+** Security_hardening, use system-provided `libcrypto`
+
 ** Notify acceptors when listener is closed.
 
 ** Stream behavior should able to handle multiple streams

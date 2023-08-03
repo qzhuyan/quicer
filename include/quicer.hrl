@@ -17,6 +17,12 @@
 -ifndef(QUICER_HRL).
 -define(QUICER_HRL, true).
 
+%%% Version
+
+-ifndef(QUICER_VERSION). %% Set via compiler option
+-define(QUICER_VERSION, "0").
+-endif.
+
 %%% ========================================
 %%% mirror macro from NIF code
 %%% ========================================
@@ -123,6 +129,10 @@
 -define(QUIC_RECEIVE_FLAG_0_RTT                 , 16#0001).
 -define(QUIC_RECEIVE_FLAG_FIN                   , 16#0002).
 
+
+%% In case we need to support upgrade.
+%% just create more quic_data_v1, quic_data_v2 ...
+%% vsn embedded in quic_data is too much overhead.
 -record(quic_data, {
     offset = 0 :: non_neg_integer(),
     size = 0 :: non_neg_integer(),

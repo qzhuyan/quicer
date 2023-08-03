@@ -156,9 +156,11 @@ reg_open() ->
 
 %% @doc Registraion should be opened before calling traffic APIs.
 %% Registraion creates application context, worker threads
-%% shared for all the connections
+%% shared for all the connections.
 %%
 %% Currently only support one application.
+%% This is long blocking call until all connections/listeners are closed.
+%% There is only one Global Registration.
 %% @end
 %% @see reg_open/1
 %% @see reg_close/0
@@ -1023,11 +1025,10 @@ defrag_fpbuffer(Offset, [{HeadOffset, _Data} | _T] = Buffer, Res) when HeadOffse
     % Nomatch
     {Offset, Buffer, lists:reverse(Res)}.
 
-%% @doc return quicer library version in string
+%% @doc Return quicer library version at compile time
 -spec vsn() -> string().
 vsn() ->
-  {ok, R} = application:get_key(?MODULE, vsn),
-  R.
+  ?QUICER_VERSION.
 
 %% @doc Get msquic library git hash
 -spec msquic_githash() -> {ok, string()} | {error, any()}.

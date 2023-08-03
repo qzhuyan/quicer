@@ -903,11 +903,13 @@ resource_config_dealloc_callback(__unused_parm__ ErlNifEnv *env,
 *library exists for this module.
 */
 static int
-on_load(ErlNifEnv *env,
-        __unused_parm__ void **priv_data,
-        __unused_parm__ ERL_NIF_TERM loadinfo)
+on_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM loadinfo)
 {
-  int ret_val = 0;
+  int ret_val = 0; // success
+  if (NULL == *priv_data)
+    {
+      load_priv_data(env, loadinfo, priv_data);
+    }
 
 // init atoms in use.
 #define ATOM(name, val)                                                       \
@@ -963,15 +965,58 @@ on_load(ErlNifEnv *env,
 
 /*
 ** on_upgrade is called when the NIF library is loaded and there is old code of
-*this module with a loaded NIF library.
+*  this module with a loaded NIF library.
 */
 static int
 on_upgrade(ErlNifEnv *env,
            void **priv_data,
-           __unused_parm__ void **old_priv_data,
+           void **old_priv_data,
            ERL_NIF_TERM load_info)
 {
-  return on_load(env, *priv_data, load_info);
+  unsigned int current_vsn = 0;
+  assert(!*priv_data);
+  switch (enif_term_type(env, load_info))
+    {
+    case ERL_NIF_TERM_TYPE_LIST: // live
+      load_priv_data(env, load_info, priv_data);
+      break;
+    case ERL_NIF_TERM_TYPE_INTEGER: // deprecated
+    default:
+      enif_get_uint(env, load_info, &current_vsn);
+      assert(current_vsn == 0);
+      break;
+    }
+
+  if (*old_priv_data != NULL && *priv_data != NULL)
+    {
+      // Upgradable
+      char *oldvsn, *newvsn;
+      uint8_t old_nif_vsn, new_nif_vsn;
+      get_lib_vsn_from_psd(*old_priv_data, &oldvsn);
+      get_lib_vsn_from_psd(*priv_data, &newvsn);
+
+      get_nif_vsn_from_psd(*old_priv_data, &old_nif_vsn);
+      get_nif_vsn_from_psd(*priv_data, &new_nif_vsn);
+
+      if (strcmp(oldvsn, newvsn) != 0)
+        {
+          // Lib version changed, just warning
+          printf("on_upgrade from %s to %s\n", oldvsn, newvsn);
+        }
+
+      if (old_nif_vsn != new_nif_vsn)
+        {
+          // NIF version changed
+          printf("on_upgrade NIF version from %d to %d\n",
+                 old_nif_vsn,
+                 new_nif_vsn);
+          /*
+          ** upgrade path, case by case
+          */
+        }
+    }
+
+  return 0;
 }
 
 /*
@@ -981,6 +1026,10 @@ on_upgrade(ErlNifEnv *env,
 static void
 on_unload(__unused_parm__ ErlNifEnv *env, __unused_parm__ void *priv_data)
 {
+  if (priv_data)
+    {
+      enif_free(priv_data);
+    }
   // @TODO We want registration context and APIs for it
   if (isRegistered)
     {
@@ -1116,6 +1165,8 @@ deregistration(__unused_parm__ ErlNifEnv *env,
 {
   if (isRegistered && GRegistration)
     {
+      MsQuic->RegistrationShutdown(
+          GRegistration, QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, 0);
       MsQuic->RegistrationClose(GRegistration);
       GRegistration = NULL;
       isRegistered = false;

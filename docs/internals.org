@@ -1,5 +1,64 @@
 Write down some notes for internal implementations.
 
+* erlang modules
+
+1. **quicer**
+
+   Application interface module.
+
+   First entry for developers, provides APIs.
+
+2. **quicer_app**
+
+   Application module.
+   Starts supervision tree.
+
+3. **quicer_connection**
+
+   QUIC Connection behaviour
+
+4. **quicer_conn_acceptor_sup**
+
+   QUIC connections sup.
+
+5. **quicer_lib**
+
+   Internal lib, helpers
+
+6. **quicer_listener**
+   QUIC Listener process
+
+7. **quicer_listener_sup**
+   QUIC Listeners supervisor
+
+8. **quicer_local_stream**
+
+   Declare QUIC local stream behaviour
+
+   Local Stream is the stream initiated from local
+
+9. **quicer_remote_stream**
+
+   Declare QUIC remote stream behaviour
+
+   Remote Stream is the stream initiated from remote that is accepted locally.
+
+10. **quicer_nif**
+
+    NIF module, backed by C code.
+
+11. **quicer_server_conn_callback**
+
+    Sample implementation of server connecion callbacks.
+
+12. *quicer_stream*
+
+    QUIC stream behaviour.
+    For both local and remote streams.
+
+13. **quicer_sup**
+    Application Supervisor
+
 * Handler Lifecycle
 ** What is Handler
 

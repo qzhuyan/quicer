@@ -1,18 +1,38 @@
-case {os:getenv("GITHUB_ACTIONS"), os:getenv("GITHUB_TOKEN")} of
-  {"true", Token} when is_list(Token) ->
-    CONFIG1 = [{coveralls_repo_token, Token},
-               {coveralls_service_number, os:getenv("GITHUB_RUN_ID")},
-               {coveralls_commit_sha, os:getenv("GITHUB_SHA")},
-               {coveralls_parallel, true},
-               {coveralls_flag_name, "erlang"},
-               {coveralls_service_name, "github"} | CONFIG],
-    case os:getenv("GITHUB_EVENT_NAME") =:= "pull_request"
-        andalso string:tokens(os:getenv("GITHUB_REF"), "/") of
-        [_, "pull", PRNO, _] ->
-            [{coveralls_service_pull_request, PRNO} | CONFIG1];
-        _ ->
-            CONFIG1
-    end;
-  _ ->
-    CONFIG
-end.
+FunCoverAll = fun(CONFIG0) ->
+                      case {os:getenv("GITHUB_ACTIONS"), os:getenv("GITHUB_TOKEN")} of
+                          {"true", Token} when is_list(Token) ->
+                              CONFIG1 = [{coveralls_repo_token, Token},
+                                         {coveralls_service_number, os:getenv("GITHUB_RUN_ID")},
+                                         {coveralls_commit_sha, os:getenv("GITHUB_SHA")},
+                                         {coveralls_parallel, true},
+                                         {coveralls_flag_name, "erlang"},
+                                         {coveralls_service_name, "github"} | CONFIG0],
+                              case os:getenv("GITHUB_EVENT_NAME") =:= "pull_request"
+                                  andalso string:tokens(os:getenv("GITHUB_REF"), "/") of
+                                  [_, "pull", PRNO, _] ->
+                                      [{coveralls_service_pull_request, PRNO} | CONFIG1];
+                                  _ ->
+                                      CONFIG1
+                              end;
+                          _ ->
+                              CONFIG0
+                      end
+              end,
+FunVersion = fun (Config0) ->
+                     Vsn = case os:getenv("QUICER_VERSION") of
+                               false ->
+                                   V = string:strip(os:cmd("git describe --tags --long"),
+                                                    right, $\n),
+                                   true = os:putenv("QUICER_VERSION", V),
+                                   V;
+                               V -> V
+                           end,
+                     Vsn == false andalso error("cannot get QUICER_VERSION from env"),
+                     OldErlOpts = proplists:get_value(erl_opts, Config0),
+                     ErlOpts = [{d, 'QUICER_VERSION', Vsn} | OldErlOpts],
+                     lists:keyreplace(erl_opts, 1, Config0, {erl_opts, ErlOpts})
+             end,
+lists:foldl(fun(Fun, Old) ->
+                    Fun(Old)
+            end, CONFIG,
+            [FunCoverAll, FunVersion]).

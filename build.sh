@@ -3,7 +3,10 @@
 set -ueo
 
 MSQUIC_VERSION="$1"
-TARGET_SO='priv/libquicer_nif.so'
+
+APP_VSN="${QUICER_VERSION:-$(git describe --tags --long)}"
+
+TARGET_LIB_NAME="priv/libquicer_nif.${APP_VSN}"
 PKGNAME="$(./pkgname.sh)"
 
 build() {
@@ -18,12 +21,12 @@ build() {
     cmake -B c_build
     make -j "$JOBS" -C c_build
     ## MacOS
-    if [ -f priv/libquicer_nif.dylib ]; then
+    if [[ $(uname) == "darwin"* ]]; then
+        echo "macOS"
         # https://developer.apple.com/forums/thread/696460
         # remove then copy avoid SIGKILL (Code Signature Invalid)
-        [ -f "$TARGET_SO" ] && rm "$TARGET_SO"
-        cp priv/libquicer_nif.dylib "$TARGET_SO"
-        echo "macOS"
+        [ -f "${TARGET_SO_WITH_SEMVER}.so" ] && rm "${TARGET_SO_WITH_SEMVER}.so"
+        cp "${TARGET_SO_WITH_SEMVER}.dylib" "${TARGET_SO_WITH_SEMVER}.so"
     fi
 }
 
@@ -45,7 +48,7 @@ download() {
 
     echo "$(cat "_packages/${PKGNAME}.sha256") _packages/${PKGNAME}" | sha256sum -c || return 1
 
-    gzip -c -d "_packages/${PKGNAME}" > "$TARGET_SO"
+    gzip -c -d "_packages/${PKGNAME}" > "$TARGET_SO_WITH_SEMVER.so"
     erlc -I include src/quicer_nif.erl
     if erl -noshell -eval '[_|_]=quicer_nif:module_info(), halt(0).'; then
         res=0
@@ -65,7 +68,7 @@ release() {
     fi
     mkdir -p _packages
     TARGET_PKG="_packages/${PKGNAME}"
-    gzip -c "$TARGET_SO" > "$TARGET_PKG"
+    gzip -c "$TARGET_SO_WITH_SEMVER.so" > "$TARGET_PKG"
     # use openssl but not sha256sum command because in some macos env it does not exist
     if command -v openssl; then
         openssl dgst -sha256 "${TARGET_PKG}" | cut -d ' ' -f 2  > "${TARGET_PKG}.sha256"

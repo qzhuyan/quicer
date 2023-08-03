@@ -432,8 +432,6 @@ handle_info(Info,
     ?tp(debug, #{module=>?MODULE, event => info}),
     default_cb_ret(M:handle_info(Info, CBState), State).
 
-%% @TODO  handle_info({EXIT....
-
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
