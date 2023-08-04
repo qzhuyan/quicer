@@ -1021,7 +1021,7 @@ on_upgrade(ErlNifEnv *env,
 
 /*
 ** unload is called when the module code that the NIF library belongs to is
-*purged as old. New code of the same module may or may not exist.
+*  purged as old. New code of the same module may or may not exist.
 */
 static void
 on_unload(__unused_parm__ ErlNifEnv *env, __unused_parm__ void *priv_data)
@@ -1031,17 +1031,6 @@ on_unload(__unused_parm__ ErlNifEnv *env, __unused_parm__ void *priv_data)
       enif_free(priv_data);
     }
   // @TODO We want registration context and APIs for it
-  if (isRegistered)
-    {
-      MsQuic->RegistrationClose(GRegistration);
-      isRegistered = FALSE;
-    }
-
-  if (isLibOpened)
-    {
-      MsQuicClose(MsQuic);
-      isLibOpened = FALSE;
-    }
 }
 
 static ERL_NIF_TERM

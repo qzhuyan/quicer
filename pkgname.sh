@@ -27,7 +27,7 @@ case "$UNAMES" in
 esac
 
 ARCH="$(uname -m)"
-VSN="$(git describe --tags --exact-match | head -1)"
+VSN="${1:-$(git describe --tags --exact-match | head -1)}"
 
 if [ -z "$VSN" ]; then
     exit 0

@@ -44,6 +44,10 @@
         , nif_vsn/0
         ]).
 
+
+%% hot reload
+-export([load_nif/2]).
+
 %% For tests only
 -export([open_connection/0]).
 
@@ -60,7 +64,17 @@
 -spec init() -> ok.
 init() ->
   NifName = "libquicer_nif",
+  CompileTimeVsn = ?QUICER_VERSION,
   QuicerVsn = quicer:vsn(),
+  case CompileTimeVsn of
+      "0" ->
+          %% Dev mode in CI, ignore.
+          ignore;
+      QuicerVsn ->
+          ok;
+      _ ->
+          io:format("~p: ~p is loaded with app: ~p~n", [?MODULE, CompileTimeVsn, QuicerVsn])
+  end,
   {ok, Niflib} = locate_lib(priv_dir(), NifName++"."++QuicerVsn),
   ok = erlang:load_nif(Niflib, _LoadInfo = QuicerVsn),
   %% It could cause segfault if MsQuic library is not opened nor registered.
@@ -77,6 +91,9 @@ init() ->
       %% already opened
       ok
   end.
+
+load_nif(Path, LoadInfo) ->
+    erlang:load_nif(Path, LoadInfo).
 
 -spec open_lib() ->
         {ok, true}  | %% opened
