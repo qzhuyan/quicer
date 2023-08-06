@@ -41,7 +41,7 @@ groups() ->
 init_per_suite(Config) ->
     TAG = ?BASETAG,
     DDir = ?config(data_dir, Config),
-    ct:pal(os:cmd(io_lib:format("bash ~s/build_base.sh ~s", [DDir, TAG]))),
+    ct:pal("~p~n", [os:cmd(io_lib:format("bash ~s/build_base.sh ~s", [DDir, TAG]))]),
     BaseAppPath = lists:flatten(io_lib:format("~s/quic-~s/_build/default/lib/quicer/", [DDir, TAG])),
     [{base_app_dir, BaseAppPath} | Config].
 
@@ -59,8 +59,15 @@ init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(_, Config) ->
+    ct:pal("cleanup current quicer_nif ~p", [quicer_nif:module_info()]),
+    case code:delete(quicer_nif) of
+        false ->
+            code:purge(quicer_nif),
+            code:delete(quicer_nif);
+        true  ->
+            skip
+    end,
     code:purge(quicer_nif),
-    code:delete(quicer_nif),
     Config.
 
 tc_app_restart(_) ->

@@ -6,22 +6,24 @@ MSQUIC_VERSION="$1"
 
 APP_VSN="${QUICER_VERSION:-$(git describe --tags --long)}"
 
-TARGET_LIB_NAME="priv/libquicer_nif.${APP_VSN}"
+TARGET_SO_WITH_SEMVER="priv/libquicer_nif.${APP_VSN}"
 PKGNAME="$(./pkgname.sh)"
 
 build() {
     # default: 4 concurrent jobs
     JOBS=4
-    if [ "$(uname -s)" = 'Darwin' ]; then
+    if [[ "$(uname -s)" = "Darwin" ]]; then
+        IsMacOS=true
         JOBS="$(sysctl -n hw.ncpu)"
     else
+        IsMacOS=false
         JOBS="$(nproc)"
     fi
     ./get-msquic.sh "$MSQUIC_VERSION"
     cmake -B c_build
     make -j "$JOBS" -C c_build
     ## MacOS
-    if [[ $(uname) == "darwin"* ]]; then
+    if $IsMacOS; then
         echo "macOS"
         # https://developer.apple.com/forums/thread/696460
         # remove then copy avoid SIGKILL (Code Signature Invalid)
