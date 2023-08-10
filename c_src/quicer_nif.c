@@ -898,6 +898,18 @@ resource_config_dealloc_callback(__unused_parm__ ErlNifEnv *env,
   TP_CB_3(end, (uintptr_t)obj, 0);
 }
 
+static void
+init_atoms(ErlNifEnv *env)
+{
+// init atoms in use.
+#define ATOM(name, val)                                                       \
+  {                                                                           \
+    (name) = enif_make_atom(env, #val);                                       \
+  }
+  INIT_ATOMS
+#undef ATOM
+}
+
 /*
 ** on_load is called when the NIF library is loaded and no previously loaded
 *library exists for this module.
@@ -911,13 +923,7 @@ on_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM loadinfo)
       load_priv_data(env, loadinfo, priv_data);
     }
 
-// init atoms in use.
-#define ATOM(name, val)                                                       \
-  {                                                                           \
-    (name) = enif_make_atom(env, #val);                                       \
-  }
-  INIT_ATOMS
-#undef ATOM
+  init_atoms(env);
 
   ErlNifResourceFlags flags
       = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
@@ -975,6 +981,7 @@ on_upgrade(ErlNifEnv *env,
 {
   unsigned int current_vsn = 0;
   assert(!*priv_data);
+  init_atoms(env);
   switch (enif_term_type(env, load_info))
     {
     case ERL_NIF_TERM_TYPE_LIST: // live
