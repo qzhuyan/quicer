@@ -910,21 +910,8 @@ init_atoms(ErlNifEnv *env)
 #undef ATOM
 }
 
-/*
-** on_load is called when the NIF library is loaded and no previously loaded
-*library exists for this module.
-*/
-static int
-on_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM loadinfo)
+static void open_resources(ErlNifEnv *env)
 {
-  int ret_val = 0; // success
-  if (NULL == *priv_data)
-    {
-      load_priv_data(env, loadinfo, priv_data);
-    }
-
-  init_atoms(env);
-
   ErlNifResourceFlags flags
       = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
 
@@ -965,6 +952,24 @@ on_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM loadinfo)
                                            &streamInit, // init callbacks
                                            flags,
                                            NULL);
+}
+
+/*
+** on_load is called when the NIF library is loaded and no previously loaded
+*library exists for this module.
+*/
+static int
+on_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM loadinfo)
+{
+  int ret_val = 0; // success
+
+  assert(!*priv_data);
+
+  load_priv_data(env, loadinfo, priv_data);
+
+  init_atoms(env);
+
+  open_resources(env);
 
   return ret_val;
 }
@@ -981,7 +986,12 @@ on_upgrade(ErlNifEnv *env,
 {
   unsigned int current_vsn = 0;
   assert(!*priv_data);
+
   init_atoms(env);
+
+  // take over resources
+  open_resources(env);
+
   switch (enif_term_type(env, load_info))
     {
     case ERL_NIF_TERM_TYPE_LIST: // live
@@ -1033,9 +1043,11 @@ on_upgrade(ErlNifEnv *env,
 static void
 on_unload(__unused_parm__ ErlNifEnv *env, __unused_parm__ void *priv_data)
 {
+
   if (priv_data)
     {
-      enif_free(priv_data);
+      free(priv_data);
+      priv_data = NULL;
     }
   // @TODO We want registration context and APIs for it
 }

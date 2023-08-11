@@ -54,7 +54,7 @@ typedef struct quicer_nif_psd
 QUICER_NIF_PSD *
 quicer_psd_new_latest()
 {
-  QUICER_NIF_PSD *psd = (QUICER_NIF_PSD *)enif_alloc(sizeof(QUICER_NIF_PSD));
+  QUICER_NIF_PSD *psd = (QUICER_NIF_PSD *)malloc(sizeof(QUICER_NIF_PSD));
 
   if (psd == NULL)
     return NULL;
@@ -89,7 +89,7 @@ load_priv_data(ErlNifEnv *env, ERL_NIF_TERM loadinfo, void **priv_data)
                               MAX_LEN_LIB_VERSION,
                               ERL_NIF_LATIN1))
         {
-          enif_free(psd);
+          free(psd);
           *priv_data = NULL;
           return FALSE;
         }

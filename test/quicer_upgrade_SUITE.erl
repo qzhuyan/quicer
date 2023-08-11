@@ -60,14 +60,7 @@ init_per_testcase(_, Config) ->
 
 end_per_testcase(_, Config) ->
     ct:pal("cleanup current quicer_nif ~p", [quicer_nif:module_info()]),
-    case code:delete(quicer_nif) of
-        false ->
-            code:purge(quicer_nif),
-            code:delete(quicer_nif);
-        true  ->
-            skip
-    end,
-    code:purge(quicer_nif),
+    reset(Config),
     Config.
 
 tc_app_restart(_) ->
@@ -151,8 +144,8 @@ tc_application_reload_fail(Config) ->
     %% When priv dir is changed
     NewPriv = code:priv_dir(quicer),
     ?assertNotEqual(OldPriv, NewPriv),
-    %% Reload shall fail
-    ?assertEqual({error,on_load_failure}, code:load_file(quicer_nif)),
+    %% Then Reload shall fail
+    ?assertEqual({error, on_load_failure}, code:load_file(quicer_nif)),
     ?assert(code:delete(quicer_nif)),
     %% cleanup
     code:del_path(Path),
@@ -190,8 +183,18 @@ reset(Config) ->
     Path = ?config(base_app_dir, Config),
     PathL = [Path, Path++"/ebin"],
     lists:foreach(fun code:del_path/1, PathL),
-    code:purge(quicer_nif),
     application:stop(quicer),
-    code:purge(quicer_nif),
-    code:delete(quicer_nif),
+    case erlang:module_loaded(quicer_nif) of
+        true ->
+            case code:delete(quicer_nif) of
+                true ->
+                    code:purge(quicer_nif);
+                false ->
+                    code:purge(quicer_nif),
+                    code:delete(quicer_nif),
+                    code:purge(quicer_nif)
+            end;
+        false ->
+            skip
+    end,
     false = erlang:module_loaded(quicer_nif).
