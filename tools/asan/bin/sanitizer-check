@@ -42,6 +42,9 @@ if [ $# -eq 1 ]; then
         all)
             escript "$REBAR3" ct
             ;;
+        shell)
+            escript "$REBAR3" shell
+            ;;
         one_by_one)
             AllTCs=$(erl -pa _build/test/lib/quicer/test/  -noshell \
                 -eval 'io:format("~p", [lists:flatten( string:join(lists:map(fun erlang:atom_to_list/1, quicer_SUITE:all()), " ") )]), halt()')
