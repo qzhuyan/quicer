@@ -111,6 +111,7 @@
 -export([ get_conn_rid/1
         , get_stream_rid/1
         , open_connection/0
+        , nif_mapped/0
         ]).
 
 -export([ start_listener/3 %% start application over quic
@@ -1040,6 +1041,15 @@ msquic_githash() ->
     E ->
       E
   end.
+
+%% @doc Return all mapped shared libraries, new or old ones.
+-spec nif_mapped() -> [binary()].
+nif_mapped() ->
+  {ok, Raw} = file:read_file("/proc/self/maps"),
+  lists:filter(fun(L) ->
+                  nomatch =/= binary:match(L, <<"quicer_nif">>)
+               end,
+               binary:split(Raw,<<$\n>>, [global])).
 
 %% @doc Get quicer nif internal integer version
 -spec nif_vsn() -> non_neg_integer().

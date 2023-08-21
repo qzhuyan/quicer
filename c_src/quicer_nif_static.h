@@ -1,6 +1,10 @@
 #ifndef QUICER_NIF_STATIC_H_
 #define QUICER_NIF_STATIC_H_
 
+
+#include "msquic.h"
+#include <erl_nif.h>
+
 #ifndef QUICER_NIF_VSN
 #define QUICER_NIF_VSN 0
 #endif
@@ -19,7 +23,11 @@ typedef struct quicer_nif_sdata_vsn_0
   char lib_version[MAX_LEN_LIB_VERSION];
   char msquic_git_hash[64];
   uint16_t nif_vsn;
+  const QUIC_API_TABLE *lib_handle;
+  void **lib_handle_ptr;
+  ErlNifMutex *lock;
 } quicer_nif_sdata_vsn_0;
+
 
 /*
 ** NIF Static data
@@ -67,10 +75,28 @@ quicer_psd_new_latest()
     default:
       memset(&psd->data.vsn_0, 0, sizeof(quicer_nif_sdata_vsn_0));
       psd->data.vsn_0.nif_vsn = QUICER_NIF_VSN;
+      assert(MsQuic != NULL);
+      psd->data.vsn_0.lock = enif_mutex_create("quicer_nif_psd");
+      psd->data.vsn_0.lib_handle = MsQuic;
+      psd->data.vsn_0.lib_handle_ptr = (void **)&MsQuic; // set once
       break;
     }
   return psd;
 }
+
+void
+release_priv_data(QUICER_NIF_PSD *psd)
+{
+  switch (psd->type)
+    {
+    case QUICER_NIF_SDATA_VSN_0:
+    default:
+      enif_mutex_destroy(psd->data.vsn_0.lock);
+      break;
+    }
+  free(psd);
+}
+
 
 /*
 **
@@ -120,5 +146,65 @@ get_nif_vsn_from_psd(QUICER_NIF_PSD *psd, uint8_t *vsn)
       *vsn = psd->data.vsn_0.nif_vsn;
     }
 }
+
+const QUIC_API_TABLE *
+get_msquic_from_psd(QUICER_NIF_PSD *psd)
+{
+  const QUIC_API_TABLE *msquic = NULL;
+  switch (psd->type)
+    {
+    case QUICER_NIF_SDATA_VSN_0:
+    default:
+      enif_mutex_lock(psd->data.vsn_0.lock);
+      msquic = psd->data.vsn_0.lib_handle;
+      enif_mutex_unlock(psd->data.vsn_0.lock);
+      break;
+    }
+  return msquic;
+}
+
+void **
+get_lib_api_ptr_from_psd(QUICER_NIF_PSD *psd)
+{
+  void **ptr = NULL;
+  switch (psd->type)
+    {
+    case QUICER_NIF_SDATA_VSN_0:
+    default:
+      enif_mutex_lock(psd->data.vsn_0.lock);
+      ptr = psd->data.vsn_0.lib_handle_ptr;
+      enif_mutex_unlock(psd->data.vsn_0.lock);
+      break;
+    }
+  return ptr;
+}
+
+void set_psd_msquic(QUICER_NIF_PSD *psd, const QUIC_API_TABLE *api)
+{
+  switch (psd->type)
+    {
+    case QUICER_NIF_SDATA_VSN_0:
+    default:
+      enif_mutex_lock(psd->data.vsn_0.lock);
+      psd->data.vsn_0.lib_handle = api;
+      enif_mutex_unlock(psd->data.vsn_0.lock);
+      break;
+    }
+}
+
+void close_psd_msquic(QUICER_NIF_PSD *psd)
+{
+  switch (psd->type)
+    {
+    case QUICER_NIF_SDATA_VSN_0:
+    default:
+      enif_mutex_lock(psd->data.vsn_0.lock);
+      MsQuicClose(psd->data.vsn_0.lib_handle);
+      psd->data.vsn_0.lib_handle = NULL;
+      enif_mutex_unlock(psd->data.vsn_0.lock);
+      break;
+    }
+}
+
 
 #endif // QUICER_NIF_STATIC_H_

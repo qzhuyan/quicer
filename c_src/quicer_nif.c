@@ -956,27 +956,43 @@ static void open_resources(ErlNifEnv *env)
 
 /*
 ** on_load is called when the NIF library is loaded and no previously loaded
-*library exists for this module.
+*  library exists for this module.
 */
 static int
 on_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM loadinfo)
 {
   int ret_val = 0; // success
+  QUIC_STATUS status = QUIC_STATUS_SUCCESS;
 
   assert(!*priv_data);
-
-  load_priv_data(env, loadinfo, priv_data);
 
   init_atoms(env);
 
   open_resources(env);
 
+  assert(!MsQuic);
+
+  if (QUIC_SUCCEEDED(status = MsQuicOpen2(&MsQuic)))
+  {
+    isLibOpened = TRUE;
+    load_priv_data(env, loadinfo, priv_data);
+  }
+  else
+  {
+    ret_val = status;
+  }
   return ret_val;
 }
 
 /*
 ** on_upgrade is called when the NIF library is loaded and there is old code of
 *  this module with a loaded NIF library.
+*
+*  But new code could be the same as old code, that is, the same msquic library is mapped into process memory.
+*  To distinguish the two cases, the `MsQuic` API handle is checked since it is init as NULL for new loading.
+*  If MsQuic is NULL, then it is a new load, that two msquic libraries (new and old) are mapped into process memory,
+*  If MsQuic is not NULL, then it is already initilized and there is still one msquic library in process memory.
+*  In any case above, we return success.
 */
 static int
 on_upgrade(ErlNifEnv *env,
@@ -985,7 +1001,27 @@ on_upgrade(ErlNifEnv *env,
            ERL_NIF_TERM load_info)
 {
   unsigned int current_vsn = 0;
+  TP_NIF_3(start, &MsQuic, 0);
   assert(!*priv_data);
+
+  QUICER_NIF_PSD *old_psd = *old_priv_data;
+
+  if (old_psd)
+  {
+    if ((void **)&MsQuic == get_lib_api_ptr_from_psd(old_psd)
+        && MsQuic != NULL)
+    {
+      TP_NIF_3(same_dso, &MsQuic, 1);
+      // since we are using the same DSO.
+      // unset old module priv_data,
+      // so that no msquic teardown in on_unload of old DSO
+      *old_priv_data = NULL;
+    }
+    else {
+      TP_NIF_3(new_dso, &MsQuic, 2);
+      //set_psd_lib_handle_ptr_next(old_psd, (void **) &MsQuic);
+    }
+  }
 
   init_atoms(env);
 
@@ -1027,29 +1063,86 @@ on_upgrade(ErlNifEnv *env,
           printf("on_upgrade NIF version from %d to %d\n",
                  old_nif_vsn,
                  new_nif_vsn);
-          /*
-          ** upgrade path, case by case
-          */
         }
     }
 
+  if (!MsQuic)
+  {
+    MsQuicOpen2(&MsQuic);
+    isLibOpened = true;
+  }
   return 0;
 }
 
 /*
-** unload is called when the module code that the NIF library belongs to is
-*  purged as old. New code of the same module may or may not exist.
-*/
-static void
-on_unload(__unused_parm__ ErlNifEnv *env, __unused_parm__ void *priv_data)
-{
+** on_unload is called when the module code that the NIF library belongs to is
+*  purged as old.
+*
+*  New code of the same module may or may not exist.
+*
+*  But there are three cases:
+*
+*  Case A: No new code of the same module exists.
+*          arg `priv_data` is not NULL.
+*
+*          It is ok to teardown the MsQuic with API handle and then close the
+*          API handle.
+*
+*  Case B: New code of the same module exists and it uses the same NIF DSO.
+*          arg `priv_data` is NULL.
+*
+*          It could be checked with `quicer:nif_mapped()`
+*
+*          It is *NOT* ok to teardown the MsQuic since the new code is still using
+*          it.
+*
+*  Case C: New code of the same module exists and it uses different NIF DSO.
+*          arg `priv_data` is not NULL.
+*          AND
+*          &MsQuic != the 'lib_api_ptr' in priv_data
+*
+*          This could be checked with `quicer:nif_mapped()`
+*
+*          It is ok to teardown the MsQuic with API handle and then close the
+*          API handle.
 
+*
+*  @NOTE 1. This callback will *NOT* be called when the module is purged
+*           while there are opening resources.
+*           When new code of the same module exists, the resources will be
+*           taken over by the new code thus it will get called for the old code.
+*
+*  @NOTE 2. The `MsQuic` and `GRegistration` are in library scope.
+*
+*  @NOTE 3: It is very important to shutdown all the MsQuic Registrations before
+*           return to avoid unexpected behaviour after NIF DSO is unmapped by OS.
+*
+*  @NOTE 4: For safty, it is ok to dlopen the shared library by calling quicer:dlopen/1
+*           So we will have a refcnt on it and it won't be unmapped by OS.
+*
+*  @NOTE 5: 'same NIF DSO' means same shared library file that is managed by OS.
+*           Two copies of the same shared library in OS are different NIF DSOs.
+*  */
+static void
+on_unload(__unused_parm__ ErlNifEnv *env, void *priv_data)
+{
+  TP_NIF_3(enter, &MsQuic, 1);
   if (priv_data)
     {
-      free(priv_data);
-      priv_data = NULL;
+        TP_NIF_3(teardown, &MsQuic, 2);
+        if (isRegistered)
+        {
+          printf("on_unload: rundown registrations %p\n", &GRegistration);
+          TP_NIF_3(dereg, &GRegistration, 2);
+          MsQuic->RegistrationShutdown(GRegistration, QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, 0);
+          MsQuic->RegistrationClose(GRegistration);
+          GRegistration = NULL;
+        }
+        MsQuicClose(MsQuic);
+        MsQuic = NULL;
+        isLibOpened = FALSE;
+        release_priv_data(priv_data);
     }
-  // @TODO We want registration context and APIs for it
 }
 
 static ERL_NIF_TERM
@@ -1067,11 +1160,6 @@ openLib(ErlNifEnv *env, __unused_parm__ int argc, const ERL_NIF_TERM argv[])
       TP_NIF_3(skip, 0, 2);
       return SUCCESS(res);
     }
-
-  // @todo external call for static link
-  CxPlatSystemLoad();
-  MsQuicLibraryLoad();
-
   //
   // Open a handle to the library and get the API function table.
   //
@@ -1094,6 +1182,8 @@ openLib(ErlNifEnv *env, __unused_parm__ int argc, const ERL_NIF_TERM argv[])
           res = ATOM_DEBUG;
         }
     }
+
+  set_psd_msquic(enif_priv_data(env), MsQuic);
 
   return SUCCESS(res);
 }
@@ -1121,11 +1211,12 @@ registration(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
   QUIC_STATUS status = QUIC_STATUS_SUCCESS;
   ERL_NIF_TERM profile = argv[0];
 
+  TP_NIF_3(start, &GRegistration, 0);
+  printf("registration... %p\n", &GRegistration);
   if (isRegistered || !isLibOpened)
     {
       return ERROR_TUPLE_2(ATOM_BADARG);
     }
-
   if (argc == 1)
     {
       if (IS_SAME_TERM(profile, ATOM_QUIC_EXECUTION_PROFILE_LOW_LATENCY))
@@ -1158,11 +1249,12 @@ registration(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
                   = MsQuic->RegistrationOpen(&GRegConfig, &GRegistration)))
     {
       isRegistered = false;
-      TP_NIF_3(fail, 0, status);
+      TP_NIF_3(fail, &GRegistration, status);
       return ERROR_TUPLE_3(ATOM_REG_FAILED, ETERM_INT(status));
     }
-  TP_NIF_3(success, 0, status);
   isRegistered = true;
+  set_psd_reg(enif_priv_data(env), GRegistration);
+  TP_NIF_3(success, &GRegistration, status);
   return ATOM_OK;
 }
 
@@ -1476,6 +1568,27 @@ vsn0(ErlNifEnv *env,
   return enif_make_int(env, QUICER_NIF_VSN);
 }
 
+ERL_NIF_TERM
+mydlopen(ErlNifEnv *env,
+            __unused_parm__ int argc,
+            const ERL_NIF_TERM argv[])
+{
+  char lib_path[1024];
+  if (enif_get_string(env, argv[0], lib_path, sizeof(lib_path), ERL_NIF_LATIN1) <= 0)
+  {
+    return ERROR_TUPLE_2(ATOM_BADARG);
+  }
+  else {
+    if (NULL == dlopen(lib_path, RTLD_LAZY))
+    {
+      return ERROR_TUPLE_2(ATOM_BADARG);
+    }
+    else {
+      return ATOM_OK;
+    }
+  }
+}
+
 static ErlNifFunc nif_funcs[] = {
   /* |  name  | arity| funptr | flags|
    *
@@ -1508,7 +1621,8 @@ static ErlNifFunc nif_funcs[] = {
   /* for DEBUG */
   { "get_conn_rid", 1, get_conn_rid1, 1},
   { "get_stream_rid", 1, get_stream_rid1, 1},
-  { "nif_vsn", 0, vsn0, 0}
+  { "nif_vsn", 0, vsn0, 0},
+  { "dlopen", 1, mydlopen, 0}
   // clang-format on
 };
 

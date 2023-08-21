@@ -13,7 +13,7 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 %%--------------------------------------------------------------------
--module(quicer_upgrade_SUITE).
+-module(quicer_hotupgrade_SUITE).
 -compile(export_all).
 -compile(nowarn_export_all).
 
@@ -26,8 +26,8 @@ all() ->
     [{group, without_traffic}].
 
 groups() ->
-    [{without_traffic, [], [ tc_app_restart
-                           , tc_app_unload
+    [{without_traffic, [], [ tc_app_unload
+                           , tc_app_restart
                            , tc_application_reload_fail
                            , tc_quicer_nif_reload
                            , tc_quicer_nif_soft_purge
@@ -43,6 +43,9 @@ init_per_suite(Config) ->
     DDir = ?config(data_dir, Config),
     ct:pal("~p~n", [os:cmd(io_lib:format("bash ~s/build_base.sh ~s", [DDir, TAG]))]),
     BaseAppPath = lists:flatten(io_lib:format("~s/quic-~s/_build/default/lib/quicer/", [DDir, TAG])),
+    application:stop(quicer),
+    application:start(quicer),
+    quicer:reg_open(),
     [{base_app_dir, BaseAppPath} | Config].
 
 end_per_suite(_Config) ->
@@ -55,12 +58,14 @@ end_per_group(without_traffic, Config) ->
     Config.
 
 init_per_testcase(_, Config) ->
+    ct:pal("~p~n: mapped quicer shared libs: ~p", [?FUNCTION_NAME, quicer:nif_mapped()]),
     reset(Config),
+    %% @NOTE, When run with ASAN, the RO data of shared lib is still mapped.
+    ct:pal("~p~n: After RESET: mapped quicer shared libs: ~p", [?FUNCTION_NAME, quicer:nif_mapped()]),
     Config.
 
 end_per_testcase(_, Config) ->
-    ct:pal("cleanup current quicer_nif ~p", [quicer_nif:module_info()]),
-    reset(Config),
+    ct:pal("~p~n: mapped quicer shared libs: ~p", [?FUNCTION_NAME, quicer:nif_mapped()]),
     Config.
 
 tc_app_restart(_) ->
@@ -70,8 +75,10 @@ tc_app_restart(_) ->
     ok.
 
 tc_app_unload(_)->
+    application:ensure_all_started(quicer),
     application:stop(quicer),
     ok = application:unload(quicer).
+
 
 tc_quicer_nif_reload(_) ->
     application:ensure_all_started(quicer),
@@ -144,12 +151,9 @@ tc_application_reload_fail(Config) ->
     %% When priv dir is changed
     NewPriv = code:priv_dir(quicer),
     ?assertNotEqual(OldPriv, NewPriv),
-    %% Then Reload shall fail
-    ?assertEqual({error, on_load_failure}, code:load_file(quicer_nif)),
-    ?assert(code:delete(quicer_nif)),
-    %% cleanup
-    code:del_path(Path),
-    code:purge(quicer_nif).
+    %% Then Reload shall fail and fall back to old module
+    ct:pal("reload shall fail now ... wiht priv:~p", [NewPriv]),
+    ?assertEqual({module, quicer_nif}, code:load_file(quicer_nif)).
 
 tc_patching_with_paths(Config) ->
     Path = ?config(base_app_dir, Config),

@@ -31,10 +31,7 @@ start(_StartType, _StartArgs) ->
 
 stop(_) ->
     %% close all listeners before shutdown and
-    %% close the global Registration
     listeners_stop_all(),
-    quicer:reg_close(),
-    quicer:close_lib(),
     ok.
 
 listeners_stop_all() ->

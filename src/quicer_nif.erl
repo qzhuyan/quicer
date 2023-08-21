@@ -42,6 +42,7 @@
 -export([ get_conn_rid/1
         , get_stream_rid/1
         , nif_vsn/0
+        , dlopen/1
         ]).
 
 
@@ -66,6 +67,7 @@ init() ->
   NifName = "libquicer_nif",
   CompileTimeVsn = ?QUICER_VERSION,
   QuicerVsn = quicer:vsn(),
+  %% Comparing `quicer' and `quicer_nif' compile time versions.
   case CompileTimeVsn of
       "0" ->
           %% Dev mode in CI, ignore.
@@ -76,15 +78,20 @@ init() ->
           io:format("~p: ~p is loaded with app: ~p~n", [?MODULE, CompileTimeVsn, QuicerVsn])
   end,
   {ok, Niflib} = locate_lib(priv_dir(), NifName++"."++QuicerVsn),
-  ok = erlang:load_nif(Niflib, _LoadInfo = QuicerVsn),
-  %% It could cause segfault if MsQuic library is not opened nor registered.
-  %% here we have added dummy calls, and it should cover most of cases
-  %% unless caller wants to call erlang:load_nif/1 and then call quicer_nif
-  %% without opened library to suicide.
-  %%
+  %% io:format("Niflib: ~p~n", [Niflib]),
+  case erlang:load_nif(Niflib, _LoadInfo = QuicerVsn) of
+      ok ->
+          application:set_env(quicer, nif_lib_in_use, Niflib),
+          ok;
+      {error, {load_failed, _}} = E ->
+          case application:get_env(quicer, nif_lib_in_use, undefined) of
+              undefined -> E;
+              LastNiflib ->
+                  io:format("Failed to load ~p, fallback to ~p~n", [Niflib, LastNiflib]),
+                  ok = erlang:load_nif(LastNiflib, CompileTimeVsn)
+          end
+  end,
   %% Note, we could do same dummy calls in nif instead but it might mess up the reference counts.
-  {ok, _} = open_lib(),
-  %% dummy reg open
   case reg_open() of
     ok -> ok;
     {error, badarg} ->
@@ -265,6 +272,8 @@ peercert(_Handle) ->
 nif_vsn() ->
   erlang:nif_error(nif_library_not_loaded).
 
+dlopen(_Lib) ->
+  erlang:nif_error(nif_library_not_loaded).
 %% Internals
 -spec locate_lib(file:name(), file:name()) ->
         {ok, file:filename()} | {error, not_found}.
