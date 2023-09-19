@@ -19,7 +19,7 @@ jobs:
         os:
           - macos-12
           - macos-11
-          - macos-12-arm64
+          #- macos-12-arm64
     runs-on: ${{ matrix.os }}
     steps:
 
