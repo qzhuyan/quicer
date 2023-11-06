@@ -47,16 +47,9 @@ download() {
     echo "$(cat "_packages/${PKGNAME}.sha256") _packages/${PKGNAME}" | sha256sum -c || return 1
 
     tar zxvf "_packages/${PKGNAME}" -C $(dirname "$TARGET_SO")
-    erlc -I include src/quicer_nif.erl
-    if erl -noshell -eval '[_|_]=quicer_nif:module_info(), halt(0).'; then
-        res=0
-    else
-        # failed to load, build from source
-        rm -f $TARGET_SO
-        res=1
-    fi
-    rm -f quicer_nif.beam
-    return $res
+    VSN=$(echo "${PKGNAME}" | cut -d '-' -f 2)
+    [[ -f "priv/libquicer_nif.so.*-${VSN}" ]]
+    return $?
 }
 
 release() {
