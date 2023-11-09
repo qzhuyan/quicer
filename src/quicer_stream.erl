@@ -104,12 +104,14 @@
 
 -define(post_init, post_init).
 
--type state() :: #{ stream := quicer:stream_handle()
+-type state() :: #{ stream := quicer:stream_handle() | undefined
                   , conn := quicer:connection_handle()
                   , callback := atom()
-                  , callback_state := term()
+                  , callback_state := term() | undefined
                   , is_owner := boolean()
                   , stream_opts := map()
+                  , fpbuffer := disabled | map()
+                  , is_local => boolean()
                   }.
 
 %%%===================================================================
@@ -187,10 +189,10 @@ wait_for_handoff(FromOwner, Stream) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec init(Args :: term()) -> {ok, state()} |
-          {ok, state(), Timeout :: timeout()} |
-          {ok, state(), hibernate} |
-          {stop, Reason :: term()} |
-          ignore.
+          %% {ok, state(), Timeout :: timeout()} |
+          %% {ok, state(), hibernate} |
+          {ok, state(), {continue, {post_init, pid()}}}|
+          {stop, Reason :: term()}.
 %% With only Conn handle
 %% Stream will be started or accepted.
 init([Callback, Conn, StreamOpts]) when is_list(StreamOpts) ->
@@ -312,8 +314,9 @@ handle_cast(_Request, State) ->
 %%--------------------------------------------------------------------
 -spec handle_info(Info :: timeout() | term(), state()) ->
           {noreply, state()} |
-          {noreply, state(), Timeout :: timeout()} |
+          %% {noreply, state(), Timeout :: timeout()} |
           {noreply, state(), hibernate} |
+          {noreply, state(), {'continue', any()}} |
           {stop, Reason :: normal | term(), state()}.
 handle_info({quic, closed, undefined, undefined},
             #{ is_local := false
@@ -442,10 +445,11 @@ handle_info(Info,
 %% If such a {continue,_} tuple is used and the callback is not implemented,
 %% the process will exit with undef error.
 -spec handle_continue(Continue::term(), State::term()) ->
-          {noreply, state()} |
-          {noreply, state(), Timeout :: timeout()} |
-          {noreply, state(), hibernate} |
-          {stop, Reason :: normal | term(), state()}.
+          {noreply, term()} |
+          {noreply, term(), Timeout :: timeout()} |
+          {noreply, term(), hibernate} |
+          {noreply, term(), {continue, _}} |
+          {stop, Reason :: term(), term()}.
 handle_continue({?post_init, PrevOwner}, #{ is_owner := false, stream := Stream
                                           , callback_state := CBState
                                           , callback := M} = State) ->
@@ -475,7 +479,7 @@ handle_continue(Other, #{ callback := M
 %% @end
 %%--------------------------------------------------------------------
 -spec terminate(Reason :: normal | shutdown | {shutdown, term()} | term(),
-                state()) -> any().
+                state()) -> ok.
 terminate(Reason, _State) ->
     error_code(Reason),
     ok.

@@ -163,6 +163,11 @@ get_registration_name(_Handle) ->
 
 -spec listen(listen_on(), listen_opts()) ->
         {ok, listener_handle()} |
+        {error, registration} | %% registration not opened or wrong registration
+        {error, quic_tls} |   %% bad tls related opts, cacertfile, certfile, keyfile, password...
+        {error, cacertfile} | %% bad cacert file
+        {error, quic_registration} | %% wrong registration opt
+        {error, badarg} |
         {error, listener_open_error,  atom_reason()} |
         {error, listener_start_error, atom_reason()}.
 listen(_ListenOn, _Options) ->
@@ -190,8 +195,7 @@ open_connection(_) ->
 
 -spec async_connect(hostname(), inet:port_number(), conn_opts()) ->
         {ok, connection_handle()} |
-        {error, conn_open_error | config_error | conn_start_error} |
-          {error, not_found, any()}.
+        {error, atom_reason() | cacertfile | cert_error | badarg}.
 async_connect(_Host, _Port, _Opts) ->
   erlang:nif_error(nif_library_not_loaded).
 

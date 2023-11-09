@@ -56,8 +56,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 -spec init(Args :: term()) ->
           {ok, {SupFlags :: supervisor:sup_flags(),
-                [ChildSpec :: supervisor:child_spec()]}} |
-          ignore.
+                [ChildSpec :: supervisor:child_spec()]}}.
 init([]) ->
 
     SupFlags = #{strategy => one_for_one,

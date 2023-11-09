@@ -218,14 +218,14 @@ reg_close() ->
 
 %% @doc Start a stopped listener with listener handle.
 -spec start_listener(listener_handle(), listen_on(), listen_opts()) ->
-        {ok, pid()} | {error, any()}.
+        ok | {error, any()}.
 start_listener(Listener, Port, Options) when is_list(Options)->
   start_listener(Listener, Port, maps:from_list(Options));
 start_listener(Listener, Port, Options) ->
   quicer_nif:start_listener(Listener, Port, Options).
 
 %% @doc Stop a started listener which could be closed or restarted later.
--spec stop_listener(listener_handle()) -> ok.
+-spec stop_listener(listener_handle()) -> ok | {error, badarg | closed}.
 stop_listener(Handle) ->
   case quicer_nif:stop_listener(Handle) of
     ok ->
@@ -250,7 +250,8 @@ spawn_listener(AppName, Port, Options) when is_atom(AppName) ->
   quicer_listener:start_listener(AppName, Port, Options).
 
 %% @doc terminate a listener process under supervisor tree
--spec terminate_listener(atom() | listener_handle()) -> ok.
+-spec terminate_listener(atom()) -> ok |
+        {error, not_found | restarting | running | simple_one_for_one}.
 terminate_listener(AppName) when is_atom(AppName)->
   quicer_listener:stop_listener(AppName).
 
@@ -265,14 +266,7 @@ terminate_listener(AppName) when is_atom(AppName)->
 %%
 %% 3. There is no address binding even HOST is specified.
 %% @end
--spec listen(listen_on(), listen_opts()) ->
-        {ok, listener_handle()} |
-        {error, quic_tls} |   %% bad tls related opts, cacertfile, certfile, keyfile, password...
-        {error, cacertfile} | %% bad cacert file
-        {error, quic_registration} | %% wrong registration opt
-        {error, badarg} |
-        {error, listener_open_error,  atom_reason()} |
-        {error, listener_start_error, atom_reason()}.
+-spec listen(listen_on(), listen_opts()) -> quicer_nif:listener(listen_on(), listen_opts()).
 listen(ListenOn, Opts) when is_list(Opts) ->
   listen(ListenOn, maps:from_list(Opts));
 listen(ListenOn, Opts) when is_map(Opts) ->
@@ -313,8 +307,9 @@ close_listener(Listener, Timeout) ->
 -spec connect(inet:hostname() | inet:ip_address(),
               inet:port_number(), conn_opts(), timeout()) ->
           {ok, connection_handle()} |
-          {error, conn_open_error | config_error | conn_start_error} |
-          {error, timeout} | {error, nst_not_found}.
+          {error, atom_reason()} |
+          {error, transport_down, transport_shutdown_props()} |
+          {error, timeout}.
 connect(Host, Port, Opts, Timeout) when is_list(Opts) ->
   connect(Host, Port, maps:from_list(Opts), Timeout);
 connect(Host, Port, Opts, Timeout) when is_tuple(Host) ->
@@ -341,10 +336,7 @@ connect(Host, Port, Opts, Timeout) when is_map(Opts) ->
           {error, transport_down, Reason}
       end;
     {error, _} = Err ->
-      Err;
-    {error, not_found, _} ->
-      %% nst error
-      {error, nst_not_found}
+      Err
   end.
 
 %% @doc
@@ -356,7 +348,7 @@ connect(Host, Port, Opts, Timeout) when is_map(Opts) ->
 -spec async_connect(inet:hostname() | inet:ip_address(),
               inet:port_number(), conn_opts()) ->
           {ok, connection_handle()} |
-          {error, conn_open_error | config_error | conn_start_error}.
+          {error, atom_reason()}.
 async_connect(Host, Port, Opts) when is_list(Opts) ->
   async_connect(Host, Port, maps:from_list(Opts));
 async_connect(Host, Port, Opts) when is_tuple(Host) ->
@@ -380,7 +372,7 @@ handshake(Conn) ->
 %% @see handshake/2
 %% @see async_handshake/1
 -spec handshake(connection_handle(), timeout()) -> {ok, connection_handle()} |
-                                                   {error, any()}.
+                                                   {error, closed | timeout | atom()}.
 handshake(Conn, Timeout) ->
   case async_handshake(Conn) of
     {error, _} = E -> E;
@@ -397,7 +389,7 @@ handshake(Conn, Timeout) ->
 %% Caller should expect to receive ```{quic, connected, connection_handle()}'''
 %%
 %% @see handshake/2
--spec async_handshake(connection_handle()) -> ok | {error, any()}.
+-spec async_handshake(connection_handle()) -> ok | {error, atom()}.
 async_handshake(Conn) ->
   quicer_nif:async_handshake(Conn).
 
@@ -446,7 +438,7 @@ async_accept(Listener, Opts) ->
 
 %% @doc Starts the shutdown process on a connection and block until it is finished.
 %% @see shutdown_connection/4
--spec shutdown_connection(connection_handle()) -> ok | {error, timeout | closed}.
+-spec shutdown_connection(connection_handle()) -> ok | {error, badarg | timeout | closed}.
 shutdown_connection(Conn) ->
   shutdown_connection(Conn, 5000).
 
@@ -455,7 +447,7 @@ shutdown_connection(Conn) ->
 %% @end
 %% @see shutdown_connection/4
 -spec shutdown_connection(connection_handle(), timeout()) ->
-        ok | {error, timeout | badarg}.
+        ok | {error, timeout | badarg | closed}.
 shutdown_connection(Conn, Timeout) ->
   shutdown_connection(Conn, ?QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, 0, Timeout).
 
@@ -477,7 +469,7 @@ shutdown_connection(Conn, Flags, ErrorCode) ->
 -spec shutdown_connection(connection_handle(),
                        conn_shutdown_flag(),
                        app_errno(),
-                       timeout()) -> ok | {error, timeout | badarg}.
+                       timeout()) -> ok | {error, closed | timeout | badarg}.
 shutdown_connection(Conn, Flags, ErrorCode, Timeout) ->
   %% @todo make_ref
   case async_shutdown_connection(Conn, Flags, ErrorCode) of
@@ -519,11 +511,11 @@ close_connection(Conn, Flags, ErrorCode) ->
 -spec close_connection(connection_handle(),
                        conn_shutdown_flag(),
                        app_errno(),
-                       timeout()) -> ok | {error, badarg | timeout}.
+                       timeout()) -> ok | {error, closed | badarg | timeout}.
 close_connection(Conn, Flags, ErrorCode, Timeout) ->
   shutdown_connection(Conn, Flags, ErrorCode, Timeout).
 
--spec async_close_connection(connection_handle()) -> ok.
+-spec async_close_connection(connection_handle()) -> ok | {error, badarg | closed}.
 async_close_connection(Conn) ->
   async_close_connection(Conn, ?QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, 0).
 
@@ -531,7 +523,7 @@ async_close_connection(Conn) ->
 %% @see async_close_connection/3
 -spec async_close_connection(connection_handle(),
                              conn_shutdown_flag(),
-                             app_errno()) -> ok.
+                             app_errno()) -> ok | {error, badarg | closed}.
 async_close_connection(Conn, Flags, ErrorCode) ->
   async_shutdown_connection(Conn, Flags, ErrorCode).
 
@@ -545,7 +537,7 @@ async_close_connection(Conn, Flags, ErrorCode) ->
 -spec accept_stream(connection_handle(), stream_opts()) ->
         {ok, stream_handle()} |
         {error, badarg | internal_error | bad_pid | owner_dead} |
-        {erro, timeout}.
+        {error, timeout}.
 accept_stream(Conn, Opts) ->
   accept_stream(Conn, Opts, infinity).
 
@@ -560,7 +552,7 @@ accept_stream(Conn, Opts) ->
 -spec accept_stream(connection_handle(), stream_opts(), timeout()) ->
         {ok, stream_handle()} |
         {error, badarg | internal_error | bad_pid | owner_dead} |
-        {erro, timeout}.
+        {error, timeout}.
 accept_stream(Conn, Opts, Timeout) when is_list(Opts) ->
   accept_stream(Conn, maps:from_list(Opts), Timeout);
 accept_stream(Conn, Opts, Timeout) when is_map(Opts) ->
